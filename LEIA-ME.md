@@ -1,20 +1,22 @@
 # Rifa de Natal – como colocar no ar
 
 ## 1. Site (GitHub Pages)
-Sobe para o repositório a pasta inteira: `index.html`, `img/` e `js/`.
-Ativa em *Settings → Pages → Deploy from a branch → main / (root)*.
+Os arquivos já estão neste repositório. Para publicar: *Settings → Pages → Deploy from a branch → main / (root) → Save*.
+O endereço fica https://brunoicardoso.github.io/rifasnatal/
 
 ## 2. Controle automático (planilha + Apps Script), uns 5 minutos
-1. Cria uma planilha nova no Google Planilhas (ex.: "Rifa de Natal 2026 – vendas").
-2. *Extensões → Apps Script*. Apaga o que tiver e cola o conteúdo de `apps-script/Code.gs`. Salva.
-3. No topo, escolhe a função **configurar** e clica em **Executar**. Autoriza com a tua conta
-   (vai aparecer "app não verificado": *Avançado → Acessar*). Isso cria as abas **Vendas** e **Resumo**.
-4. **Implantar → Nova implantação →** tipo **App da Web**
+A planilha já existe no Drive, na pasta da rifa: **Rifa de Natal 2026 – vendas**
+(https://docs.google.com/spreadsheets/d/1wv20MKrJ1ehDy_LNn3aIgwL4iGOB76jlVSNgOqXp4vs/edit).
+
+1. Abre a planilha e vai em *Extensões → Apps Script*. Apaga o que tiver e cola o conteúdo de `apps-script/Code.gs`. Salva.
+2. No topo, escolhe a função **configurar** e clica em **Executar**. Autoriza com a tua conta
+   (vai aparecer "app não verificado": *Avançado → Acessar*). Isso aplica a formatação e os menus da coluna Situação.
+3. **Implantar → Nova implantação →** tipo **App da Web**
    - Executar como: **Eu**
    - Quem pode acessar: **Qualquer pessoa**
-   
+
    Copia a URL que termina em `/exec`.
-5. No `index.html`, cola essa URL em `"apiUrl": ""` e sobe de novo.
+4. No `index.html`, cola essa URL em `"apiUrl": ""` e faz o commit.
 
 Se mudar o `Code.gs` depois: *Implantar → Gerenciar implantações → editar (lápis) → Nova versão*,
 para manter a mesma URL.
