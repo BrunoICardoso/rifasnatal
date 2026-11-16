@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="Rifa de Natal do CEREPAL: R$ 5 por número, pagamento por PIX e resultado pela Loteria Federal de Natal.">
+<meta name="description" content="Rifa de Natal: R$ 5 por número, pagamento por PIX e resultado pela Loteria Federal de Natal.">
 <meta property="og:title" content="Rifa de Natal 2026">
-<meta property="og:description" content="Concorra a 3 prêmios com números de R$ 5 e ajude a campanha de Natal do CEREPAL.">
+<meta property="og:description" content="Concorra a 3 prêmios com números de R$ 5 e ajude a campanha de Natal.">
 <meta property="og:type" content="website">
 <title>Rifa de Natal 2026</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Caveat:wght@500;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,800&display=swap">
@@ -259,7 +259,7 @@ footer p{margin:4px 0}
 -->
 <script id="config" type="application/json">
 {
-  "organizacao": "CEREPAL",
+  "organizacao": "",
   "titulo": "Rifa de Natal 2026",
   "causa": "Toda a renda vai para a campanha de Natal. Cada número custa pouco, ajuda muito e ainda concorre a três prêmios.",
   "whatsapp": "+55 51 9505-8775",
@@ -269,7 +269,7 @@ footer p{margin:4px 0}
   "sorteio": "Loteria Federal de Natal",
   "dataSorteio": null,
   "regra": "O resultado sai pela Extração Especial de Natal da Loteria Federal. Ganha o 1º prêmio quem tiver o número igual aos 3 últimos algarismos do 1º prêmio da Federal; o 2º e o 3º prêmios seguem o 2º e o 3º prêmios da Federal. Se o número sorteado não tiver sido vendido, ganha o próximo número vendido acima dele.",
-  "pix": { "chave": "90265394015", "tipoChave": "CPF", "nome": "CEREPAL", "cidade": "PORTO ALEGRE" },
+  "pix": { "chave": "90265394015", "tipoChave": "CPF", "nome": "RIFA DE NATAL", "cidade": "PORTO ALEGRE" },
   "premios": [
     { "titulo": "Garrafa térmica elétrica RAF 6,8 L", "descricao": "Inox, 800 W, três formas de servir e base giratória 360°.", "imagem": "img/premio-1.jpg" },
     { "titulo": "Liquidificador Britânia Diamante 1050 W", "descricao": "Copo de 2,6 L com filtro, 4 velocidades e funções pulsar, ice e autolimpeza.", "imagem": "img/premio-2.jpg" },
@@ -540,14 +540,15 @@ let filter='all', query='', range = TOTAL>200 ? 0 : 'all';
 let order = null;         // compra em andamento {id, nums, nome, tel, expira}
 
 /* topo */
-$('#eyebrow').textContent = CFG.organizacao+' · '+CFG.titulo;
+const ORG = CFG.organizacao ? ' – '+CFG.organizacao : '';
+$('#eyebrow').textContent = CFG.organizacao ? CFG.organizacao+' · '+CFG.titulo : CFG.titulo;
 $('#lead').textContent = CFG.causa;
-document.title = CFG.titulo+' – '+CFG.organizacao;
+document.title = CFG.titulo+ORG;
 $('#f-price').textContent = brl(price);
 $('#f-draw').textContent = CFG.sorteio || 'a definir';
 $('#rule').innerHTML = '<b>Como é o sorteio:</b> ';
 $('#rule').append(CFG.regra||'');
-$('#foot-org').textContent = CFG.organizacao+' · '+CFG.titulo+'. Dúvidas: WhatsApp '+phoneFmt(CFG.whatsapp)+'.';
+$('#foot-org').textContent = (CFG.organizacao?CFG.organizacao+' · ':'')+CFG.titulo+'. Dúvidas: WhatsApp '+phoneFmt(CFG.whatsapp)+'.';
 const drawAt = CFG.dataSorteio ? new Date(CFG.dataSorteio) : null;
 if(drawAt && !isNaN(drawAt)){
   const tick=()=>{ const ms=drawAt-Date.now();
@@ -696,7 +697,7 @@ function pixPayload(valor, txid){
   const key=(p.tipoChave||'').toUpperCase()==='CPF'||(p.tipoChave||'').toUpperCase()==='CNPJ'||(p.tipoChave||'').toUpperCase()==='TELEFONE' ? (p.tipoChave.toUpperCase()==='TELEFONE'?'+'+p.chave.replace(/\D/g,''):p.chave.replace(/\D/g,'')) : p.chave;
   const tx=(txid||'RIFA').replace(/[^A-Za-z0-9]/g,'').slice(0,25)||'***';
   let s=emv('00','01')+emv('26',emv('00','br.gov.bcb.pix')+emv('01',key))+emv('52','0000')+emv('53','986')
-    +emv('54',valor.toFixed(2))+emv('58','BR')+emv('59',(ascii(p.nome||CFG.organizacao)||'RIFA').slice(0,25))+emv('60',(ascii(p.cidade||'BRASIL')||'BRASIL').slice(0,15))
+    +emv('54',valor.toFixed(2))+emv('58','BR')+emv('59',(ascii(p.nome||CFG.organizacao||'RIFA')||'RIFA').slice(0,25))+emv('60',(ascii(p.cidade||'BRASIL')||'BRASIL').slice(0,15))
     +emv('62',emv('05',tx))+'6304';
   return s+crc16(s);
 }
@@ -787,7 +788,7 @@ function showPix(){
 }
 function waMessage(){
   const a=order.nums;
-  return '🎄 '+CFG.titulo+' – '+CFG.organizacao+'\n\n'
+  return '🎄 '+CFG.titulo+ORG+'\n\n'
     +'Nome: '+order.nome+'\nWhatsApp: '+order.telFmt+'\n'
     +'Números: '+a.map(pad).join(', ')+'\n'
     +'Total: '+brl(a.length*price)+' (pago por PIX)\n'
@@ -811,7 +812,7 @@ $('#copy-key').onclick=()=>copy((CFG.pix.chave||''),'Chave PIX copiada');
 function inviteText(){
   let free=0; for(let n=INI;n<=LAST;n++) if(!status[n]) free++;
   const pr=(CFG.premios||[]).map((p,i)=>(i+1)+'º '+p.titulo).join('\n');
-  return '🎄 '+CFG.titulo+' – '+CFG.organizacao+'\n\n'
+  return '🎄 '+CFG.titulo+ORG+'\n\n'
     +(pr?'🎁 Prêmios:\n'+pr+'\n\n':'')
     +'Cada número custa '+brl(price)+' e ainda tem '+free+' disponíveis.\n'
     +'Resultado pela '+(CFG.sorteio||'Loteria Federal')+'.\n'
