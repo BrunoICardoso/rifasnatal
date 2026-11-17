@@ -296,7 +296,7 @@ footer p{margin:4px 0}
   ],
   "resultado": [],
   "mostrarNomes": true,
-  "apiUrl": "",
+  "apiUrl": "https://script.google.com/macros/s/AKfycbygQObdq6GDvdoej5phbz8JgBIzDkiCOoJrz_5YMVu4thAW0-fOdEQmPX4S1f09BklvKQ/exec",
   "minutosParaPagar": 30,
   "siteUrl": "https://brunoicardoso.github.io/rifasnatal/"
 }
@@ -790,7 +790,7 @@ $('#go-pay').onclick=async()=>{
         }
         order.id=r.id; order.expira=Date.now()+(r.minutos||CFG.minutosParaPagar)*6e4;
         a.forEach(n=>status[n]={s:'pend',nome:nome.split(' ')[0]});
-      }catch(e){ p1Err('Sem conexão com a planilha. Confira a internet e tente de novo.'); order=null; return; }
+      }catch(e){ order.id=''; }   // planilha fora do ar: segue pelo PIX + WhatsApp, sem travar a compra
       finally{ b.removeAttribute('aria-busy'); b.textContent='Ir para o pagamento'; }
     }
   }
@@ -810,7 +810,8 @@ function showPix(){
   $('#key-type').textContent=(CFG.pix.tipoChave||'chave');
   $('#pix-key').textContent=keyDisplay();
   clearInterval(timerT);
-  if(API){
+  $('#timer').hidden=true;
+  if(API && order.id){
     const t=$('#timer'); t.hidden=false;
     const upd=()=>{ const ms=order.expira-Date.now();
       if(ms<=0){ t.textContent='O tempo acabou. Se já pagou, mande o comprovante mesmo assim que a organização confere.'; clearInterval(timerT); return; }
