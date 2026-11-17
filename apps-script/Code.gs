@@ -8,6 +8,7 @@
  *   - GET  ?acao=status  → lista pública de números vendidos/em pagamento (só primeiro nome)
  *   - POST {acao:'reservar', nome, telefone, numeros}  → guarda os números enquanto a pessoa paga
  *   - POST {acao:'pago', id}                           → a pessoa avisou que pagou
+ *   - POST {acao:'comprovante', id, arquivo:{nome,tipo,base64}} → salva o comprovante no Drive e o link na planilha
  *
  * A organização só mexe na coluna "Situação" da aba Vendas:
  *   Aguardando pagamento → (automático) a pessoa ainda está pagando; libera sozinho depois do prazo
@@ -22,7 +23,9 @@ const CONFIG = {
   INICIO: 0,             // primeiro número
   TOTAL: 1000,           // quantidade de números
   MINUTOS: 30,           // tempo para pagar antes de liberar os números
-  MAX_POR_COMPRA: 200
+  MAX_POR_COMPRA: 200,
+  PASTA_ID: '1WwJC2EJF3T34TaL9S_hgQguiXbmlXWv8',   // pasta da rifa no Drive; os comprovantes vão para a subpasta "Comprovantes"
+  MAX_MB: 10
 };
 
 const SIT = {
@@ -32,7 +35,7 @@ const SIT = {
   CANCELADO: 'Cancelado',
   CONFLITO: 'Pago - CONFLITO (ver números)'
 };
-const CAB = ['Data', 'Código', 'Nome', 'WhatsApp', 'Números', 'Qtd', 'Valor (R$)', 'Situação', 'Observações'];
+const CAB = ['Data', 'Código', 'Nome', 'WhatsApp', 'Números', 'Qtd', 'Valor (R$)', 'Situação', 'Observações', 'Comprovante'];
 
 /* ---------- web app ---------- */
 
@@ -45,6 +48,7 @@ function doPost(e) {
   try { d = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, erro: 'Pedido inválido.' }); }
   if (d.acao === 'reservar') return json_(reservar_(d));
   if (d.acao === 'pago') return json_(marcarPago_(d));
+  if (d.acao === 'comprovante') return json_(comprovante_(d));
   return json_({ ok: false, erro: 'Ação desconhecida.' });
 }
 
@@ -136,16 +140,59 @@ function marcarPago_(d) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
-    const sh = aba_();
     const rows = linhas_();
     const r = rows.find(x => x.id === id);
     if (!r) return { ok: false, erro: 'Compra não encontrada.' };
-    if (r.sit !== SIT.AGUARDANDO) return { ok: true };
-    // se o prazo passou e alguém pegou algum número nesse meio-tempo, marca para a organização resolver
-    const occ = ocupados_(rows.filter(x => x.id !== id), Date.now());
-    const choque = r.nums.filter(n => occ[n]);
-    sh.getRange(r.linha, 8).setValue(choque.length ? SIT.CONFLITO : SIT.PAGO);
-    if (choque.length) sh.getRange(r.linha, 9).setValue('Já vendidos para outra pessoa: ' + choque.join(', '));
+    pago_(aba_(), rows, r);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Aguardando → Pago - conferir (ou CONFLITO se alguém pegou algum número depois do prazo). */
+function pago_(sh, rows, r) {
+  if (r.sit !== SIT.AGUARDANDO) return;
+  const occ = ocupados_(rows.filter(x => x.id !== r.id), Date.now());
+  const choque = r.nums.filter(n => occ[n]);
+  sh.getRange(r.linha, 8).setValue(choque.length ? SIT.CONFLITO : SIT.PAGO);
+  if (choque.length) sh.getRange(r.linha, 9).setValue('Já vendidos para outra pessoa: ' + choque.join(', '));
+  r.sit = choque.length ? SIT.CONFLITO : SIT.PAGO;
+}
+
+function pastaComprovantes_() {
+  const pasta = DriveApp.getFolderById(CONFIG.PASTA_ID);
+  const it = pasta.getFoldersByName('Comprovantes');
+  return it.hasNext() ? it.next() : pasta.createFolder('Comprovantes');
+}
+
+function comprovante_(d) {
+  const id = String(d.id || '').toUpperCase();
+  const a = d.arquivo || {};
+  const tipo = String(a.tipo || '');
+  if (!id || !a.base64) return { ok: false, erro: 'Escolha o arquivo do comprovante.' };
+  if (!(tipo.indexOf('image/') === 0 || tipo === 'application/pdf')) return { ok: false, erro: 'Mande uma foto, print ou PDF.' };
+  const bytes = Utilities.base64Decode(a.base64);
+  if (bytes.length > CONFIG.MAX_MB * 1024 * 1024) return { ok: false, erro: 'Arquivo muito grande. Mande um print do comprovante.' };
+
+  const r0 = linhas_().find(x => x.id === id);
+  if (!r0) return { ok: false, erro: 'Compra não encontrada.' };
+  const ext = tipo === 'application/pdf' ? 'pdf' : (tipo.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+  const nomeArq = id + ' - ' + r0.nome + ' - ' + r0.nums.map(n => String(n).padStart(3, '0')).join(' ') + '.' + ext;
+  const arq = pastaComprovantes_().createFile(Utilities.newBlob(bytes, tipo, nomeArq.slice(0, 180)));
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const sh = aba_();
+    const rows = linhas_();
+    const r = rows.find(x => x.id === id);
+    if (sh.getRange(1, 10).getValue() === '') sh.getRange(1, 10).setValue('Comprovante').setFontWeight('bold').setBackground('#1f4d3d').setFontColor('#ffffff');
+    const atual = String(sh.getRange(r.linha, 10).getValue());
+    sh.getRange(r.linha, 10).setValue(atual ? atual + '\n' + arq.getUrl() : arq.getUrl());
+    pago_(sh, rows, r);
+    const obs = String(sh.getRange(r.linha, 9).getValue());
+    if (obs.indexOf('Comprovante enviado pelo site') < 0) sh.getRange(r.linha, 9).setValue((obs ? obs + ' · ' : '') + 'Comprovante enviado pelo site');
     return { ok: true };
   } finally {
     lock.releaseLock();
@@ -167,7 +214,7 @@ function configurar() {
   if (!sh) sh = ss.insertSheet(CONFIG.ABA, 0);
   sh.getRange(1, 1, 1, CAB.length).setValues([CAB]).setFontWeight('bold').setBackground('#1f4d3d').setFontColor('#ffffff');
   sh.setFrozenRows(1);
-  [150, 80, 200, 130, 260, 50, 90, 190, 260].forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  [150, 80, 200, 130, 260, 50, 90, 190, 260, 300].forEach((w, i) => sh.setColumnWidth(i + 1, w));
   sh.getRange('A2:A').setNumberFormat('dd/mm/yyyy hh:mm');
   sh.getRange('G2:G').setNumberFormat('R$ #,##0.00');
   sh.getRange('E2:E').setNumberFormat('@').setWrap(true);
@@ -175,7 +222,7 @@ function configurar() {
     .requireValueInList([SIT.AGUARDANDO, SIT.PAGO, SIT.CONFIRMADO, SIT.CANCELADO, SIT.CONFLITO], true).build();
   sh.getRange('H2:H').setDataValidation(regra);
   const cor = (txt, bg) => SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=LEFT($H2,' + txt.length + ')="' + txt + '"')
-    .setBackground(bg).setRanges([sh.getRange('A2:I')]).build();
+    .setBackground(bg).setRanges([sh.getRange('A2:J')]).build();
   sh.setConditionalFormatRules([
     cor('Confirmado', '#d5ebdd'), cor('Pago - CONFLITO', '#f9d3cd'), cor('Pago', '#fff4d6'),
     cor('Cancelado', '#eeeeee'), cor('Aguardando', '#ffffff')

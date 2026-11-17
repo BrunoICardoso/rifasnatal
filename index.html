@@ -254,6 +254,15 @@ footer p{margin:4px 0}
 .done-ok .seal{width:64px;height:64px;border-radius:50%;background:#3f8c6b;color:#fff;display:grid;place-items:center;font-size:30px;outline:2px dashed #fff;outline-offset:-7px}
 .err-box{font-size:14px;font-weight:700;color:var(--berry-deep);background:#fdecea;border-radius:6px;padding:8px 10px}
 .btn[aria-busy="true"]{opacity:.7;pointer-events:none}
+.up{border:2px dashed #c9d2cd;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;background:#fff}
+.file-pick{position:relative;display:flex;align-items:center;justify-content:center;text-align:center;min-height:54px;border-radius:8px;background:#eef3ef;color:var(--ink);font-weight:700;font-size:14px;padding:10px;cursor:pointer;overflow-wrap:anywhere}
+.file-pick input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.file-pick.has{background:#d5ebdd;color:#1d5a37}
+.or{display:flex;align-items:center;gap:10px;color:var(--ink-soft);font-size:13px;font-weight:700}
+.or::before,.or::after{content:"";flex:1;border-top:1px solid #d9d3c3}
+.btn-wa{background:#25d366;color:#0b3d22}
+.btn-wa:hover{background:#1fbb59}
+.btn-wa.soft{background:transparent;color:#1d7a43;border:1px solid #9fd8b4;font-weight:700}
 </style>
 </head>
 <body>
@@ -422,7 +431,7 @@ footer p{margin:4px 0}
     <ul class="how">
       <li><b>1</b> Escolha seus números</li>
       <li><b>2</b> Pague na hora pelo PIX</li>
-      <li><b>3</b> Mande o comprovante no WhatsApp</li>
+      <li><b>3</b> Mande o comprovante pelo site ou WhatsApp</li>
     </ul>
 
     <section class="prizes" aria-labelledby="prizes-title">
@@ -511,17 +520,30 @@ footer p{margin:4px 0}
         <button type="button" class="btn btn-ghost" id="copy-key">Copiar chave</button>
       </div>
       <p class="note">O valor já vem preenchido no QR Code e no copia e cola. Confira o valor antes de confirmar.</p>
-      <a class="btn btn-primary" id="paid" target="_blank" rel="noopener">Já paguei · enviar comprovante</a>
+      <button type="button" class="btn btn-primary" id="paid">Já paguei · enviar comprovante</button>
       <button type="button" class="btn btn-ghost" id="back1">Voltar</button>
     </div>
 
-    <!-- passo 3: pronto -->
-    <div id="p3" class="dlg done-ok" style="padding:0" hidden>
-      <div class="seal">✓</div>
-      <h3 id="p3-title">Obrigado!</h3>
+    <!-- passo 3: comprovante -->
+    <div id="p3" class="dlg" style="padding:0" hidden>
+      <h3 id="p3-title">Agora, o comprovante</h3>
       <div class="picked" id="p3-picked"></div>
-      <p id="p3-text"></p>
-      <a class="btn btn-primary" id="paid-again" target="_blank" rel="noopener">Abrir o WhatsApp de novo</a>
+      <div id="send-opts">
+        <p class="note">Escolha como mandar o comprovante do PIX para a organização:</p>
+        <div class="up" id="up-box" hidden>
+          <strong>📎 Anexar aqui no site</strong>
+          <label class="file-pick"><input type="file" id="file" accept="image/*,application/pdf"><span id="file-lbl">Escolher foto, print ou PDF do comprovante</span></label>
+          <button type="button" class="btn btn-primary" id="up-send" disabled>Enviar comprovante</button>
+          <div class="err-box" id="up-err" hidden></div>
+        </div>
+        <div class="or" id="or" hidden><span>ou</span></div>
+        <a class="btn btn-wa" id="wa-send" target="_blank" rel="noopener">💬 Mandar pelo WhatsApp</a>
+      </div>
+      <div class="done-ok" id="up-ok" hidden>
+        <div class="seal">✓</div>
+        <h3 id="ok-title">Comprovante recebido!</h3>
+        <p id="ok-text"></p>
+      </div>
       <button type="button" class="btn btn-ghost" data-close>Fechar</button>
     </div>
   </form>
@@ -787,8 +809,6 @@ function showPix(){
   catch(e){ box.hidden=true; }
   $('#key-type').textContent=(CFG.pix.tipoChave||'chave');
   $('#pix-key').textContent=keyDisplay();
-  const href='https://wa.me/'+waNum+'?text='+encodeURIComponent(waMessage());
-  $('#paid').href=href; $('#paid-again').href=href;
   clearInterval(timerT);
   if(API){
     const t=$('#timer'); t.hidden=false;
@@ -799,24 +819,75 @@ function showPix(){
   }
   step(2);
 }
-function waMessage(){
-  const a=order.nums;
+function waMessage(o){
+  const a=o.nums;
   return '🎄 '+CFG.titulo+ORG+'\n\n'
-    +'Nome: '+order.nome+'\nWhatsApp: '+order.telFmt+'\n'
+    +'Nome: '+o.nome+'\nWhatsApp: '+o.telFmt+'\n'
     +'Números: '+a.map(pad).join(', ')+'\n'
     +'Total: '+brl(a.length*price)+' (pago por PIX)\n'
-    +(order.id?'Código: '+order.id+'\n':'')
+    +(o.id?'Código: '+o.id+'\n':'')
     +'\nSegue o comprovante 👇';
 }
+let done=null;      // compra concluída, usada no passo do comprovante
 $('#paid').addEventListener('click',()=>{
   if(API && order.id){ try{ fetch(API,{method:'POST',body:JSON.stringify({acao:'pago',id:order.id}),keepalive:true}); }catch(e){} }
   order.nums.forEach(n=>status[n]={s:'sold',nome:order.nome.split(' ')[0]});
-  fillPicked($('#p3-picked'),order.nums);
-  $('#p3-title').textContent='Obrigado, '+order.nome.split(' ')[0]+'!';
-  $('#p3-text').textContent='Agora é só anexar o comprovante do PIX na conversa do WhatsApp que abriu. Boa sorte no sorteio! 🍀';
-  sel.clear(); clearInterval(timerT); order=null; render();
-  setTimeout(()=>step(3),300);
+  done=order; order=null; sel.clear(); clearInterval(timerT); render();
+  fillPicked($('#p3-picked'),done.nums);
+  $('#p3-title').textContent='Obrigado, '+done.nome.split(' ')[0]+'! Agora, o comprovante';
+  const canUp = !!(API && done.id);
+  $('#up-box').hidden=!canUp; $('#or').hidden=!canUp;
+  $('#wa-send').classList.toggle('soft',canUp);
+  $('#wa-send').href='https://wa.me/'+waNum+'?text='+encodeURIComponent(waMessage(done,false));
+  $('#send-opts').hidden=false; $('#up-ok').hidden=true; $('#up-err').hidden=true;
+  $('#file').value=''; $('#file-lbl').textContent='Escolher foto, print ou PDF do comprovante'; $('#file-lbl').parentElement.classList.remove('has');
+  $('#up-send').disabled=true;
+  step(3);
 });
+$('#wa-send').addEventListener('click',()=>{
+  if($('#up-ok').hidden){ setTimeout(()=>{ $('#send-opts').hidden=true; $('#up-ok').hidden=false;
+    $('#ok-title').textContent='Boa sorte no sorteio! 🍀';
+    $('#p3-title').textContent='Obrigado, '+done.nome.split(' ')[0]+'!';
+    $('#ok-text').textContent='É só anexar o comprovante do PIX na conversa do WhatsApp que abriu.'; },400); }
+});
+
+/* comprovante pelo site: imagem é reduzida no aparelho antes de enviar */
+let upFile=null;
+$('#file').addEventListener('change',e=>{
+  const f=e.target.files[0]; upFile=null; $('#up-err').hidden=true;
+  if(!f) return;
+  if(!(f.type.startsWith('image/')||f.type==='application/pdf')){ upErr('Escolha uma foto, print ou PDF.'); return; }
+  if(f.size>15e6){ upErr('Arquivo muito grande. Mande um print do comprovante.'); return; }
+  upFile=f; $('#file-lbl').textContent='📄 '+f.name; $('#file-lbl').parentElement.classList.add('has'); $('#up-send').disabled=false;
+});
+function upErr(m){ const b=$('#up-err'); b.textContent=m; b.hidden=false; }
+function readB64(blob){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(blob); }); }
+async function shrink(f){
+  if(f.type==='application/pdf') return f;
+  try{
+    const bmp=await createImageBitmap(f);
+    const s=Math.min(1,1600/Math.max(bmp.width,bmp.height));
+    const c=document.createElement('canvas'); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
+    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+    return await new Promise(r=>c.toBlob(b=>r(b||f),'image/jpeg',.85));
+  }catch(e){ return f; }
+}
+$('#up-send').onclick=async()=>{
+  if(!upFile||!done) return;
+  const b=$('#up-send'); b.setAttribute('aria-busy','true'); b.textContent='Enviando…'; $('#up-err').hidden=true;
+  try{
+    const blob=await shrink(upFile);
+    if(blob.size>9e6){ upErr('Arquivo muito grande. Mande um print do comprovante.'); return; }
+    const tipo=blob.type||upFile.type, ext=tipo==='application/pdf'?'pdf':tipo==='image/png'?'png':'jpg';
+    const r=await api({acao:'comprovante',id:done.id,arquivo:{nome:'comprovante.'+ext,tipo,base64:await readB64(blob)}});
+    if(!r.ok){ upErr(r.erro||'Não foi possível enviar. Tente de novo ou mande pelo WhatsApp.'); return; }
+    $('#send-opts').hidden=true; $('#up-ok').hidden=false;
+    $('#ok-title').textContent='Comprovante recebido!';
+    $('#p3-title').textContent='Obrigado, '+done.nome.split(' ')[0]+'!';
+    $('#ok-text').textContent='A organização vai conferir o PIX e seus números já estão no seu nome. Boa sorte no sorteio! 🍀';
+  }catch(e){ upErr('Sem conexão. Tente de novo ou mande pelo WhatsApp.'); }
+  finally{ b.removeAttribute('aria-busy'); b.textContent='Enviar comprovante'; }
+};
 
 $('#copy-cc').onclick=()=>copy($('#cc').textContent,'PIX copia e cola copiado. Cole no app do banco');
 $('#copy-key').onclick=()=>copy((CFG.pix.chave||''),'Chave PIX copiada');

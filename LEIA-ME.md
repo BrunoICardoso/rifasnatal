@@ -18,6 +18,10 @@ A planilha já existe no Drive, na pasta da rifa: **Rifa de Natal 2026 – venda
    Copia a URL que termina em `/exec`.
 4. No `index.html`, cola essa URL em `"apiUrl": ""` e faz o commit.
 
+**Comprovantes pelo site:** quando a pessoa anexa o comprovante no site, o script salva o arquivo na subpasta
+**Comprovantes** da pasta da rifa no Drive (ele cria a subpasta sozinho) e coloca o link na coluna **Comprovante** da aba Vendas.
+Na primeira vez que rodar, o Google pede permissão também para o Drive. É só autorizar.
+
 Se mudar o `Code.gs` depois: *Implantar → Gerenciar implantações → editar (lápis) → Nova versão*,
 para manter a mesma URL.
 
