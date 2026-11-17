@@ -226,7 +226,7 @@ footer p{margin:4px 0}
 
 /* logo da organização num cartão de papel */
 .brand{display:inline-block;background:var(--paper);border-radius:14px;padding:8px 14px;margin-bottom:18px;box-shadow:0 14px 30px -12px rgba(0,0,0,.6);transform:rotate(-1.5deg)}
-.brand img{display:block;width:190px;height:auto}
+.brand img{display:block;width:200px;height:auto}
 @media (max-width:520px){ .brand img{width:150px} }
 
 /* ===== rifa v2: faixas, regra do sorteio, pagamento PIX ===== */
@@ -342,9 +342,11 @@ footer p{margin:4px 0}
       <!-- trenó -->
       <path d="M232 128 L352 128 Q372 128 368 112" stroke="#e8b54a" stroke-width="5" fill="none" stroke-linecap="round"/>
       <path d="M252 112 V128 M330 112 V128" stroke="#e8b54a" stroke-width="4"/>
-      <circle cx="262" cy="74" r="17" fill="#7b5233"/>
-      <path d="M254 60 Q262 50 270 60" stroke="#5e3d25" stroke-width="3" fill="none"/>
-      <rect x="248" y="64" width="16" height="14" rx="2" fill="#2e7d5b"/><path d="M256 64 V78" stroke="#e8b54a" stroke-width="2.5"/>
+      <!-- placa com o logo dos Amigos Anjos -->
+      <g transform="rotate(-6 254 52)">
+        <rect x="208" y="14" width="92" height="74" rx="7" fill="#fbfaf5" stroke="#e8b54a" stroke-width="3"/>
+        <image href="img/logo-natal.png" x="212" y="18" width="84" height="62"/>
+      </g>
       <!-- Papai Noel -->
       <circle cx="306" cy="78" r="17" fill="#c0392b"/>
       <circle cx="314" cy="56" r="10" fill="#f2c9a8"/>
@@ -408,7 +410,7 @@ footer p{margin:4px 0}
 
 <header>
   <div class="wrap">
-    <div class="brand"><img src="img/logo.png" alt="Amigos Anjos" width="520" height="330"></div>
+    <div class="brand"><img src="img/logo-natal.png" alt="Amigos Anjos" width="780" height="578"></div>
     <div class="eyebrow" id="eyebrow"></div>
     <h1>Escolha seus <em>números da sorte</em> e ajude o nosso Natal</h1>
     <p class="lead" id="lead"></p>
