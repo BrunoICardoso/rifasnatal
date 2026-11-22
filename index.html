@@ -628,7 +628,24 @@ if(TOTAL>200){
   const o=el('option',null,'Todos os números'); o.value='all'; rs.append(o);
   rs.value=String(INI); range=INI;
   rs.onchange=()=>{ range = rs.value==='all'?'all':+rs.value; render(); };
+  [...rs.options].forEach(o=>{ o.dataset.label=o.textContent; });
 } else rs.parentElement.hidden=true;
+
+/* faixas esgotadas: no filtro "Disponíveis" elas somem do seletor e a navegação pula para a próxima com número livre */
+const freeOnly = () => filter==='free' && !query && range!=='all';
+function freeIn(a){ let c=0; for(let n=a;n<=Math.min(a+99,LAST);n++) if(!status[n]&&!closed) c++; return c; }
+function nextFree(from,dir){ for(let a=from+dir*100; a>=INI && a<=LAST; a+=dir*100) if(freeIn(a)) return a; return null; }
+function syncRanges(){
+  if(rs.parentElement.hidden) return;
+  [...rs.options].forEach(o=>{ if(o.value==='all') return;
+    const full=!freeIn(+o.value);
+    o.textContent=o.dataset.label+(full?' · esgotado':'');
+    o.disabled = full && filter==='free'; });
+  if(freeOnly() && !freeIn(range)){
+    const to = nextFree(range,1) ?? nextFree(range,-1);
+    if(to!=null){ const from=range; range=to; rs.value=String(to); if(document.readyState==='complete') toast('Faixa '+pad(from)+' a '+pad(Math.min(from+99,LAST))+' esgotada. Mostrando '+pad(to)+' a '+pad(Math.min(to+99,LAST))+'.'); }
+  }
+}
 
 /* grade */
 function inRange(n){ return range==='all' || filter==='mine' || query || (n>=range && n<range+100); }
@@ -652,6 +669,7 @@ function render(){
   $('#lg-sold').textContent=sold; $('#lg-pend').textContent=pend;
   $('#sold-count').textContent=sold+' vendidos'+(pend?' · '+pend+' em pagamento':'');
 
+  syncRanges();
   const g=$('#grid'); g.textContent='';
   const frag=document.createDocumentFragment(); let shown=0;
   for(let n=INI;n<=LAST;n++){
@@ -673,12 +691,14 @@ function render(){
     }
     b.append(nm); frag.append(b);
   }
-  if(!shown) g.append(el('p','empty', filter==='mine' ? 'Você ainda não escolheu nenhum número. Toque nos bilhetes para selecionar.' : query ? 'Nenhum número encontrado com essa busca.' : 'Nenhum número livre nesta faixa. Experimente outra!'));
+  if(!shown) g.append(el('p','empty', filter==='mine' ? 'Você ainda não escolheu nenhum número. Toque nos bilhetes para selecionar.' : query ? 'Nenhum número encontrado com essa busca.' : (filter==='free' && !baseFree ? 'Todos os números foram vendidos. Obrigado! 🎄' : 'Nenhum número livre nesta faixa. Experimente outra!')));
   else g.append(frag);
   if(range!=='all' && filter!=='mine' && !query){
     const pg=el('div','pager');
-    if(range>INI){ const b=el('button','btn btn-line','← '+pad(range-100)+' a '+pad(range-1)); b.type='button'; b.onclick=()=>goRange(range-100); pg.append(b); }
-    if(range+100<=LAST){ const b=el('button','btn btn-line',pad(range+100)+' a '+pad(Math.min(range+199,LAST))+' →'); b.type='button'; b.onclick=()=>goRange(range+100); pg.append(b); }
+    const prev = freeOnly() ? nextFree(range,-1) : (range>INI ? range-100 : null);
+    const next = freeOnly() ? nextFree(range,1) : (range+100<=LAST ? range+100 : null);
+    if(prev!=null){ const b=el('button','btn btn-line','← '+pad(prev)+' a '+pad(Math.min(prev+99,LAST))); b.type='button'; b.onclick=()=>goRange(prev); pg.append(b); }
+    if(next!=null){ const b=el('button','btn btn-line',pad(next)+' a '+pad(Math.min(next+99,LAST))+' →'); b.type='button'; b.onclick=()=>goRange(next); pg.append(b); }
     g.append(pg);
   }
   renderCart();
