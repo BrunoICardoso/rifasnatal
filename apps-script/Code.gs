@@ -233,16 +233,70 @@ function configurar() {
   rs.clear();
   const v = CONFIG.ABA;
   rs.getRange('A1').setValue('Rifa de Natal – resumo').setFontWeight('bold').setFontSize(14);
-  rs.getRange('A3:B9').setValues([
+  // números distintos: cada número conta uma vez, mesmo que apareça em duas compras
+  const ativos = 'FILTER(' + v + '!E2:E,(' + v + '!H2:H="Confirmado")+(LEFT(' + v + '!H2:H,4)="Pago"))';
+  rs.getRange('A3:B10').setValues([
     ['Números confirmados (PIX conferido)', '=SUMIFS(' + v + '!F:F,' + v + '!H:H,"Confirmado")'],
     ['Números pagos a conferir', '=SUMIFS(' + v + '!F:F,' + v + '!H:H,"Pago*")'],
-    ['Total vendido (números)', '=B3+B4'],
+    ['Total vendido (números diferentes)', '=IFERROR(COUNTUNIQUE(FLATTEN(ARRAYFORMULA(IFERROR(SPLIT(TO_TEXT(' + ativos + '),", ",TRUE))))),0)'],
     ['Números livres', '=' + CONFIG.TOTAL + '-B5'],
     ['Arrecadado confirmado (R$)', '=SUMIFS(' + v + '!G:G,' + v + '!H:H,"Confirmado")'],
     ['A conferir no extrato (R$)', '=SUMIFS(' + v + '!G:G,' + v + '!H:H,"Pago*")'],
-    ['Compras registradas', '=COUNTA(' + v + '!B2:B)']
+    ['Compras registradas', '=COUNTA(' + v + '!B2:B)'],
+    ['Números vendidos em mais de uma compra', '=B3+B4-B5']
   ]);
   rs.getRange('B7:B8').setNumberFormat('R$ #,##0.00');
-  rs.setColumnWidth(1, 280); rs.setColumnWidth(2, 120);
+  rs.getRange('A11').setValue('Se a linha acima for maior que 0, use o menu Rifa → Verificar números repetidos.').setFontColor('#777777').setFontStyle('italic');
+  rs.setConditionalFormatRules([SpreadsheetApp.newConditionalFormatRule().whenNumberGreaterThan(0)
+    .setBackground('#f9d3cd').setFontColor('#962a1f').setRanges([rs.getRange('A10:B10')]).build()]);
+  rs.setColumnWidth(1, 300); rs.setColumnWidth(2, 120);
   return sh;
+}
+
+/* ---------- proteção contra número vendido duas vezes ---------- */
+
+const pad_ = n => String(n).padStart(String(CONFIG.INICIO + CONFIG.TOTAL - 1).length, '0');
+
+/** Números desta compra que já estão em outra compra ativa (paga, confirmada ou em pagamento dentro do prazo). */
+function choques_(rows, r) {
+  const occ = ocupados_(rows.filter(x => x.id !== r.id), Date.now());
+  return r.nums.filter(n => occ[n]).map(n => pad_(n) + ' (' + occ[n].id + ' – ' + occ[n].nome + ')');
+}
+
+/**
+ * Roda sozinho quando alguém edita a planilha. Se a organização marcar uma compra como Confirmado ou Pago
+ * (ou mudar os números dela) e algum número já estiver em outra compra ativa, a linha vira CONFLITO.
+ */
+function onEdit(e) {
+  const sh = e.range.getSheet();
+  if (sh.getName() !== CONFIG.ABA || e.range.getRow() < 2) return;
+  const c1 = e.range.getColumn(), c2 = e.range.getLastColumn();
+  if (!((c1 <= 8 && c2 >= 8) || (c1 <= 5 && c2 >= 5))) return;
+  const rows = linhas_();
+  for (let linha = e.range.getRow(); linha <= e.range.getLastRow(); linha++) {
+    const r = rows.find(x => x.linha === linha);
+    if (!r || !(r.sit === SIT.CONFIRMADO || r.sit.indexOf('Pago') === 0)) continue;
+    const choque = choques_(rows, r);
+    if (!choque.length) continue;
+    sh.getRange(linha, 8).setValue(SIT.CONFLITO);
+    sh.getRange(linha, 9).setValue('Número já vendido em outra compra: ' + choque.join(', ') + '. Resolva antes de confirmar.');
+    r.sit = SIT.CONFLITO;
+  }
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Rifa').addItem('Verificar números repetidos', 'verificarRepetidos').addToUi();
+}
+
+/** Lista os números que aparecem em mais de uma compra ativa. */
+function verificarRepetidos() {
+  const rows = linhas_().filter(r => r.sit === SIT.CONFIRMADO || r.sit.indexOf('Pago') === 0);
+  const dono = {};
+  rows.forEach(r => r.nums.forEach(n => (dono[n] = dono[n] || []).push(r.id + ' – ' + r.nome + ' (linha ' + r.linha + ')')));
+  const rep = Object.keys(dono).filter(n => dono[n].length > 1).sort((a, b) => a - b);
+  const ui = SpreadsheetApp.getUi();
+  if (!rep.length) { ui.alert('Nenhum número repetido. Tudo certo!'); return; }
+  ui.alert(rep.length + ' número(s) em mais de uma compra:\n\n' +
+    rep.map(n => pad_(n) + ':\n   ' + dono[n].join('\n   ')).join('\n\n') +
+    '\n\nCombine com as pessoas: quem comprou primeiro fica com o número, a outra escolhe outro número livre ou recebe o valor de volta. Depois, ajuste os números ou a situação nas linhas.');
 }

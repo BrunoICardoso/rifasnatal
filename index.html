@@ -522,6 +522,7 @@ footer p{margin:4px 0}
       <p class="note">O valor já vem preenchido no QR Code e no copia e cola. Confira o valor antes de confirmar.</p>
       <button type="button" class="btn btn-primary" id="paid">Já paguei · enviar comprovante</button>
       <button type="button" class="btn btn-ghost" id="back1">Voltar</button>
+      <button type="button" class="btn btn-ghost" id="give-up" style="border:0;text-decoration:underline">Desistir desta compra</button>
     </div>
 
     <!-- passo 3: comprovante -->
@@ -818,7 +819,13 @@ $('#go-pay').onclick=async()=>{
 };
 
 let timerT;
+/* compra em andamento fica guardada no aparelho: quem sai para pagar no app do banco e volta
+   (ou tem a página recarregada) cai direto no PIX com o botão "Já paguei" */
+const PEND='rifa-pendente';
+function savePending(){ try{ localStorage.setItem(PEND,JSON.stringify(order)); }catch(e){} }
+function clearPending(){ try{ localStorage.removeItem(PEND); }catch(e){} }
 function showPix(){
+  savePending();
   const a=order.nums, total=a.length*price;
   $('#t2-qtd').textContent=a.length+' número'+(a.length>1?'s':'');
   $('#t2-val').textContent=brl(total);
@@ -853,7 +860,7 @@ let done=null;      // compra concluída, usada no passo do comprovante
 $('#paid').addEventListener('click',()=>{
   if(API && order.id){ try{ fetch(API,{method:'POST',body:JSON.stringify({acao:'pago',id:order.id}),keepalive:true}); }catch(e){} }
   order.nums.forEach(n=>status[n]={s:'sold',nome:order.nome.split(' ')[0]});
-  done=order; order=null; sel.clear(); clearInterval(timerT); render();
+  clearPending(); done=order; order=null; sel.clear(); clearInterval(timerT); render();
   fillPicked($('#p3-picked'),done.nums);
   $('#p3-title').textContent='Obrigado, '+done.nome.split(' ')[0]+'! Agora, o comprovante';
   const canUp = !!(API && done.id);
@@ -969,6 +976,19 @@ if(/[?&]demo\b/.test(location.search)){
 }
 
 renderPrizes(); render(); renderResult(); load();
+$('#give-up').onclick=()=>{ clearPending(); order=null; clearInterval(timerT); sel.clear(); render(); closeDlg(); toast('Compra desistida. Os números voltam a ficar livres em instantes.'); };
+(function resume(){
+  let p=null; try{ p=JSON.parse(localStorage.getItem(PEND)||'null'); }catch(e){}
+  if(!p||!p.nums||!p.nums.length||closed) return;
+  if(Date.now()>p.expira+6*36e5){ clearPending(); return; }   // mais de 6 h depois do prazo: esquece
+  order=p;
+  fillPicked($('#dlg-picked'),p.nums);
+  $('#t1-qtd').textContent=p.nums.length+' número'+(p.nums.length>1?'s':'')+' × '+brl(price);
+  $('#t1-val').textContent=brl(p.nums.length*price);
+  $('#buyer').value=p.nome; $('#phone').value=p.telFmt;
+  openDlg(); showPix();
+  toast('Você tem uma compra em andamento. Se já pagou, toque em "Já paguei".');
+})();
 setInterval(()=>{ if(!dlg.open) load(); },60000);
 })();
 </script>
