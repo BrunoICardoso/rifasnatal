@@ -628,11 +628,12 @@ if(TOTAL>200){
   for(let a=INI;a<=LAST;a+=100){ const o=el('option',null,pad(a)+' a '+pad(Math.min(a+99,LAST))); o.value=a; rs.append(o); }
   const o=el('option',null,'Todos os números'); o.value='all'; rs.append(o);
   rs.value=String(INI); range=INI;
-  rs.onchange=()=>{ range = rs.value==='all'?'all':+rs.value; render(); };
+  rs.onchange=()=>{ range = rs.value==='all'?'all':+rs.value; picked=true; render(); };
   [...rs.options].forEach(o=>{ o.dataset.label=o.textContent; });
 } else rs.parentElement.hidden=true;
 
 /* faixas esgotadas: no filtro "Disponíveis" elas somem do seletor e a navegação pula para a próxima com número livre */
+let picked=false;   // a pessoa escolheu uma faixa: aí respeitamos, mesmo esgotada
 const freeOnly = () => filter==='free' && !query && range!=='all';
 function freeIn(a){ let c=0; for(let n=a;n<=Math.min(a+99,LAST);n++) if(!status[n]&&!closed) c++; return c; }
 function nextFree(from,dir){ for(let a=from+dir*100; a>=INI && a<=LAST; a+=dir*100) if(freeIn(a)) return a; return null; }
@@ -642,6 +643,10 @@ function syncRanges(){
     const full=!freeIn(+o.value);
     o.textContent=o.dataset.label+(full?' · esgotado':'');
     o.disabled = full && filter==='free'; });
+  // em "Todos", enquanto a pessoa não escolheu faixa, abre na primeira que ainda tem número livre
+  if(!picked && filter==='all' && !query && range!=='all' && !freeIn(range)){
+    const to=nextFree(INI-100,1); if(to!=null){ range=to; rs.value=String(to); }
+  }
   if(freeOnly() && !freeIn(range)){
     const to = nextFree(range,1) ?? nextFree(range,-1);
     if(to!=null){ const from=range; range=to; rs.value=String(to); if(document.readyState==='complete') toast('Faixa '+pad(from)+' a '+pad(Math.min(from+99,LAST))+' esgotada. Mostrando '+pad(to)+' a '+pad(Math.min(to+99,LAST))+'.'); }
@@ -704,7 +709,7 @@ function render(){
   }
   renderCart();
 }
-function goRange(r){ range=r; rs.value=String(r); render(); document.querySelector('.tools').scrollIntoView({behavior:'smooth'}); }
+function goRange(r){ picked=true; range=r; rs.value=String(r); render(); document.querySelector('.tools').scrollIntoView({behavior:'smooth'}); }
 $('#grid').addEventListener('click',e=>{
   const b=e.target.closest('.tk'); if(!b||b.disabled) return;
   const n=+b.dataset.n;
@@ -737,7 +742,7 @@ $('#lucky').onclick=()=>{
   const n=free[Math.floor(Math.random()*free.length)]; sel.add(n);
   if(filter==='mine'){ filter='all'; syncChips(); }
   query=''; $('#q').value='';
-  if(range!=='all'){ range=INI+Math.floor((n-INI)/100)*100; rs.value=String(range); }
+  if(range!=="all"){ picked=true; range=INI+Math.floor((n-INI)/100)*100; rs.value=String(range); }
   render();
   const b=document.querySelector('.tk[data-n="'+n+'"]');
   if(b){ b.scrollIntoView({behavior:'smooth',block:'center'}); b.classList.add('hit'); }
